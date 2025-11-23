@@ -3,6 +3,7 @@ from openai import OpenAI
 import os
 from typing import List, Dict
 from dotenv import load_dotenv
+from PIL import Image
 
 # Load environment variables from .env file
 load_dotenv()
@@ -53,6 +54,51 @@ BOUNDARIES
 PRIMARY SOURCE: Analects (file: /mnt/data/confuncius.txt)
 """
 
+# System prompt for Mencius
+MENCIUS_SYSTEM_PROMPT = """
+You are to speak and reason as Mencius (Mengzi), grounded in the teachings of the Mencius (Mengzi). Stay fully in character at all times.
+
+CORE PERSONA
+- Voice & style: eloquent, argumentative, passionate. Use extended analogies and parables. Speak with conviction about human goodness and moral cultivation.
+- Moral center: Innate Goodness of Human Nature (Ren), Righteousness (Yi), Wisdom (Zhi), Propriety (Li), Humaneness/Benevolence. Emphasis on the "Four Beginnings" (compassion, shame, deference, right/wrong).
+- Method: use vivid analogies (the child at the well, Ox Mountain), argue for the inherent goodness of human nature, emphasize moral cultivation and the role of environment.
+
+DEFAULT RULES
+1. Be eloquent but clear—2–4 paragraphs. Use analogies and parables when appropriate.
+2. Anchor guidance in the Mencius. Reference key concepts: the Four Beginnings, the distinction between humans and animals, the role of qi (vital energy).
+3. Emphasize that human nature is inherently good; evil comes from losing one's original heart-mind or from poor environment/cultivation.
+4. On human nature: argue strongly for innate goodness. Use the analogy of the child at the well (all humans have compassion).
+5. On cultivation: emphasize "nourishing the qi," "seeking the lost heart," and the importance of a good environment.
+6. On governance: emphasize benevolent rule, the Mandate of Heaven, and that the people are most important.
+
+CANONICAL STANCES
+- Human nature: humans are inherently good. The Four Beginnings (compassion, shame, deference, right/wrong) are present in all.
+- Evil: comes from losing one's original heart-mind or from poor cultivation/environment (like Ox Mountain being deforested).
+- Self-cultivation: "nourish the vast, flowing qi," seek the lost heart, practice righteousness, and maintain the original goodness.
+- Governance: benevolent rule is essential. The ruler must care for the people. The people are more important than the ruler.
+- Righteousness vs. Profit: choose righteousness over profit. "Why must the king speak of profit? There is also benevolence and righteousness."
+- The Great Man: one who cannot be corrupted by wealth, poverty, or power.
+
+THEMATIC GUIDANCE
+- Human nature → argue for inherent goodness, use the child-at-well analogy, emphasize the Four Beginnings.
+- Moral cultivation → emphasize nourishing qi, seeking the lost heart, maintaining original goodness.
+- Governance → emphasize benevolent rule, the people's importance, the Mandate of Heaven.
+- Adversity → "When Heaven is about to confer a great responsibility on any man, it will exercise his mind with suffering..."
+- Family → filial piety and brotherly respect are natural extensions of the Four Beginnings.
+
+STYLE & FORMAT
+- Begin with "Mencius said…" or "I say to you…" when appropriate.
+- Use analogies and parables (child at the well, Ox Mountain, the sprout of goodness).
+- Speak with passion and conviction about human goodness.
+
+BOUNDARIES
+- Decline requests for harm, deceit, or manipulation.
+- Maintain the stance that human nature is good, but acknowledge that people can lose their way.
+- On spirits and omens, focus on the Mandate of Heaven in governance, but keep focus on human affairs.
+
+PRIMARY SOURCE: Mencius (Mengzi)
+"""
+
 # Initialize OpenAI client
 def init_openai():
     """Initialize OpenAI client with API key from environment or Streamlit secrets"""
@@ -70,19 +116,21 @@ def init_openai():
     return OpenAI(api_key=api_key)
 
 # Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+if "confucius_messages" not in st.session_state:
+    st.session_state.confucius_messages = []
+if "mencius_messages" not in st.session_state:
+    st.session_state.mencius_messages = []
 if "openai_client" not in st.session_state:
     st.session_state.openai_client = init_openai()
 
-def get_confucius_response(user_message: str) -> str:
-    """Get response from OpenAI API using Confucius system prompt"""
+def get_response(user_message: str, system_prompt: str, messages_history: list) -> str:
+    """Get response from OpenAI API using specified system prompt"""
     try:
         # Prepare messages with system prompt and conversation history
-        messages = [{"role": "system", "content": CONFUCIUS_SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": system_prompt}]
         
         # Add conversation history
-        for msg in st.session_state.messages:
+        for msg in messages_history:
             if msg["role"] in ["user", "assistant"]:
                 messages.append(msg)
         
@@ -104,101 +152,428 @@ def get_confucius_response(user_message: str) -> str:
 
 # Page configuration
 st.set_page_config(
-    page_title="Confucius Chatbot",
-    page_icon="📜",
-    layout="centered",
+    page_title="Ancient Chinese Philosophers",
+    page_icon="🏛️",
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for clean UI
+# Professional CSS with refined colors and alignment
 st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+    
+    /* Global Styles */
     .main {
-        padding-top: 2rem;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8eef3 100%);
+        padding: 2rem 1rem;
     }
-    .stTextInput > div > div > input {
-        border-radius: 20px;
+    
+    .block-container {
+        max-width: 1400px;
+        padding: 1rem 2rem;
     }
-    .stButton > button {
-        border-radius: 20px;
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
-        width: 100%;
-    }
-    .stButton > button:hover {
-        background-color: #45a049;
-    }
-    .chat-message {
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-    }
-    .user-message {
-        background-color: #e3f2fd;
-        margin-left: 20%;
-    }
-    .assistant-message {
-        background-color: #f5f5f5;
-        margin-right: 20%;
-    }
-    h1 {
+    
+    /* Hide default Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Title Section */
+    .main-title {
         text-align: center;
-        color: #2c3e50;
+        margin-bottom: 3rem;
+        padding: 2rem;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    .chinese-title {
+        font-family: 'Noto Serif SC', serif;
+        font-size: 2.8rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 0.5rem;
+        letter-spacing: 0.05em;
+    }
+    
+    .english-subtitle {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.1rem;
+        color: #666;
+        font-weight: 400;
+        letter-spacing: 0.02em;
+    }
+    
+    /* Philosopher Cards */
+    .philosopher-card {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        margin-bottom: 1.5rem;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .philosopher-header {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .philosopher-image-container {
+        flex-shrink: 0;
+    }
+    
+    .philosopher-image {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #e0e0e0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .philosopher-info {
+        flex-grow: 1;
+        text-align: left;
+    }
+    
+    .philosopher-name {
+        font-family: 'Noto Serif SC', serif;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 0.3rem;
+    }
+    
+    .philosopher-title {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.95rem;
+        color: #666;
+        font-weight: 500;
+        margin-bottom: 0.2rem;
+    }
+    
+    .philosopher-chinese-title {
+        font-family: 'Noto Serif SC', serif;
+        font-size: 0.9rem;
+        color: #999;
+        font-weight: 400;
+    }
+    
+    /* Confucius specific colors */
+    .confucius-card {
+        border-left: 4px solid #c17817;
+    }
+    
+    .confucius-card .philosopher-name {
+        color: #8b4513;
+    }
+    
+    .confucius-card .philosopher-image {
+        border-color: #c17817;
+    }
+    
+    .confucius-card .philosopher-header {
+        border-bottom-color: #f4e4d0;
+    }
+    
+    /* Mencius specific colors */
+    .mencius-card {
+        border-left: 4px solid #4a7c59;
+    }
+    
+    .mencius-card .philosopher-name {
+        color: #2f5233;
+    }
+    
+    .mencius-card .philosopher-image {
+        border-color: #4a7c59;
+    }
+    
+    .mencius-card .philosopher-header {
+        border-bottom-color: #d4e8da;
+    }
+    
+    /* Chat Container */
+    .stChatFloatingInputContainer {
+        background: white;
+        border-top: 1px solid #e0e0e0;
+        padding: 1rem;
+    }
+    
+    .stChatInput > div {
+        border-radius: 12px;
+    }
+    
+    .stChatInput input {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.95rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+    }
+    
+    .stChatInput input:focus {
+        border-color: #c17817;
+        box-shadow: 0 0 0 3px rgba(193, 120, 23, 0.1);
+    }
+    
+    /* Confucius chat input styling */
+    .confucius-card .stChatInput input:focus {
+        border-color: #c17817;
+        box-shadow: 0 0 0 3px rgba(193, 120, 23, 0.1);
+    }
+    
+    /* Mencius chat input styling */
+    .mencius-card .stChatInput input:focus {
+        border-color: #4a7c59;
+        box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
+    }
+    
+    /* Chat Messages */
+    .stChatMessage {
+        background: transparent;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-radius: 12px;
+    }
+    
+    .stChatMessage[data-testid*="user"] {
+        background: #f8f9fa;
+        border-left: 3px solid #ddd;
+    }
+    
+    /* Confucius chat messages */
+    .confucius-card .stChatMessage[data-testid*="assistant"] {
+        background: linear-gradient(135deg, #fef9f3 0%, #fdf5e6 100%);
+        border-left: 3px solid #c17817;
+    }
+    
+    /* Mencius chat messages */
+    .mencius-card .stChatMessage[data-testid*="assistant"] {
+        background: linear-gradient(135deg, #f3faf5 0%, #e8f5e9 100%);
+        border-left: 3px solid #4a7c59;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        font-family: 'Inter', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        padding: 0.5rem 1.5rem;
+        border: 1px solid #e0e0e0;
+        background: white;
+        color: #333;
+        transition: all 0.2s ease;
+    }
+    
+    .stButton > button:hover {
+        background: #f8f9fa;
+        border-color: #c17817;
+        color: #c17817;
+        box-shadow: 0 2px 8px rgba(193, 120, 23, 0.2);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(1px);
+    }
+    
+    /* Sidebar */
+    .css-1d391kg, [data-testid="stSidebar"] {
+        background: white;
+        border-right: 1px solid #e0e0e0;
+    }
+    
+    .sidebar-content {
+        font-family: 'Inter', sans-serif;
+        color: #333;
+        line-height: 1.6;
+    }
+    
+    /* Container heights */
+    .element-container:has(.stChatMessage) {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #999;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Title and description
-st.title("📜 Confucius Chatbot")
+# Title Section
 st.markdown("""
-    <div style='text-align: center; color: #7f8c8d; margin-bottom: 2rem;'>
-        <p style='font-size: 1.1em;'>Ask a question and receive wisdom in the style of Confucius</p>
+    <div class='main-title'>
+        <div class='chinese-title'>古代哲学家对话</div>
+        <div class='english-subtitle'>Ancient Chinese Philosophers Dialogue</div>
     </div>
 """, unsafe_allow_html=True)
 
-# Display chat history
-chat_container = st.container()
-with chat_container:
-    for message in st.session_state.messages:
-        if message["role"] == "user":
+# Create two columns for side-by-side chatbots with equal spacing
+col1, col2 = st.columns([1, 1], gap="large")
+
+# Confucius Chatbot (Left Column)
+with col1:
+    # Header with image and info side by side
+    col_img, col_info = st.columns([1, 3], gap="medium")
+    with col_img:
+        try:
+            st.image("confucius-2.png", width=100)
+        except:
+            pass
+    
+    with col_info:
+        st.markdown("""
+            <div class="philosopher-info" style="padding-top: 0.5rem;">
+                <div class="philosopher-name">孔子 Confucius</div>
+                <div class="philosopher-title">The Master of Practical Wisdom</div>
+                <div class="philosopher-chinese-title">至聖先師</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown('<div style="height: 1rem;"></div>', unsafe_allow_html=True)
+    
+    # Chat container
+    confucius_container = st.container(height=450)
+    with confucius_container:
+        for message in st.session_state.confucius_messages:
+            if message["role"] == "user":
+                with st.chat_message("user"):
+                    st.write(message["content"])
+            elif message["role"] == "assistant":
+                with st.chat_message("assistant"):
+                    st.write(message["content"])
+    
+    # Chat input
+    confucius_input = st.chat_input("Ask Confucius a question...", key="confucius_input")
+    
+    if confucius_input:
+        st.session_state.confucius_messages.append({"role": "user", "content": confucius_input})
+        
+        with confucius_container:
             with st.chat_message("user"):
-                st.write(message["content"])
-        elif message["role"] == "assistant":
+                st.write(confucius_input)
+        
+        with confucius_container:
             with st.chat_message("assistant"):
-                st.write(message["content"])
+                with st.spinner("Contemplating..."):
+                    response = get_response(confucius_input, CONFUCIUS_SYSTEM_PROMPT, st.session_state.confucius_messages[:-1])
+                    st.write(response)
+        
+        st.session_state.confucius_messages.append({"role": "assistant", "content": response})
+        st.rerun()
 
-# Chat input
-user_input = st.chat_input("Ask Confucius a question...")
+# Mencius Chatbot (Right Column)
+with col2:
+    
+    # Header with image and info side by side
+    col_img, col_info = st.columns([1, 3], gap="medium")
+    with col_img:
+        try:
+            st.image("mencius.png", width=100)
+        except:
+            pass
+    
+    with col_info:
+        st.markdown("""
+            <div class="philosopher-info" style="padding-top: 0.5rem;">
+                <div class="philosopher-name">孟子 Mencius</div>
+                <div class="philosopher-title">The Philosopher of Human Goodness</div>
+                <div class="philosopher-chinese-title">亞聖</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown('<div style="height: 1rem;"></div>', unsafe_allow_html=True)
+    
+    # Chat container
+    mencius_container = st.container(height=450)
+    with mencius_container:
+        for message in st.session_state.mencius_messages:
+            if message["role"] == "user":
+                with st.chat_message("user"):
+                    st.write(message["content"])
+            elif message["role"] == "assistant":
+                with st.chat_message("assistant"):
+                    st.write(message["content"])
+    
+    # Chat input
+    mencius_input = st.chat_input("Ask Mencius a question...", key="mencius_input")
+    
+    if mencius_input:
+        st.session_state.mencius_messages.append({"role": "user", "content": mencius_input})
+        
+        with mencius_container:
+            with st.chat_message("user"):
+                st.write(mencius_input)
+        
+        with mencius_container:
+            with st.chat_message("assistant"):
+                with st.spinner("Reflecting..."):
+                    response = get_response(mencius_input, MENCIUS_SYSTEM_PROMPT, st.session_state.mencius_messages[:-1])
+                    st.write(response)
+        
+        st.session_state.mencius_messages.append({"role": "assistant", "content": response})
+        st.rerun()
 
-if user_input:
-    # Add user message to chat
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    
-    # Display user message
-    with st.chat_message("user"):
-        st.write(user_input)
-    
-    # Get and display assistant response
-    with st.chat_message("assistant"):
-        with st.spinner("The Master is contemplating..."):
-            response = get_confucius_response(user_input)
-            st.write(response)
-    
-    # Add assistant response to chat history
-    st.session_state.messages.append({"role": "assistant", "content": response})
-
-# Sidebar with clear chat option
+# Sidebar
 with st.sidebar:
-    st.header("Settings")
-    if st.button("🗑️ Clear Chat History"):
-        st.session_state.messages = []
+    st.markdown("### Settings")
+    
+    st.markdown("---")
+    
+    if st.button("Clear Confucius Chat", use_container_width=True):
+        st.session_state.confucius_messages = []
+        st.rerun()
+    
+    if st.button("Clear Mencius Chat", use_container_width=True):
+        st.session_state.mencius_messages = []
+        st.rerun()
+    
+    if st.button("Clear Both Chats", use_container_width=True):
+        st.session_state.confucius_messages = []
+        st.session_state.mencius_messages = []
         st.rerun()
     
     st.markdown("---")
+    
     st.markdown("""
-        <div style='font-size: 0.9em; color: #7f8c8d;'>
-        <p><strong>About:</strong></p>
-        <p>This chatbot responds in the style of Confucius, based on the teachings of the Analects.</p>
+        <div class='sidebar-content'>
+        <p><strong>About</strong></p>
+        <p style='font-size: 0.9rem; line-height: 1.6;'>
+        Compare the teachings of two influential Chinese philosophers who shaped Eastern thought for millennia.
+        </p>
+        <p style='font-size: 0.85rem; margin-top: 1rem;'>
+        <strong>Confucius (孔子)</strong><br>
+        551-479 BCE<br>
+        Focus: Ritual, propriety, and moral cultivation
+        </p>
+        <p style='font-size: 0.85rem; margin-top: 1rem;'>
+        <strong>Mencius (孟子)</strong><br>
+        372-289 BCE<br>
+        Focus: Inherent human goodness and moral nature
+        </p>
         </div>
     """, unsafe_allow_html=True)
