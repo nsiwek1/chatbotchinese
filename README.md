@@ -1,13 +1,16 @@
-# Confucius Chatbot
+# 🏛️ Ancient Chinese Philosophers Chat
 
-A beautiful Streamlit chatbot application that uses OpenAI's API to generate answers in the style of Confucius, based on the teachings of the Analects.
+A beautiful Streamlit application featuring conversations with Confucius (孔子) and Mencius (孟子), two of the most influential philosophers in Chinese history. Chat with both masters side-by-side or watch them debate philosophical questions!
 
-## Features
+## ✨ Features
 
-- Clean, modern UI with a chat interface
-- Responses in the authentic style of Confucius
-- Conversation history maintained during the session
-- Easy to use and navigate
+- **💬 Dual Chat Interface** - Talk to Confucius and Mencius simultaneously
+- **📜 Debate Mode** - Watch both philosophers discuss topics together
+- **🌙 Dark/Light Mode** - Toggle between beautiful themes
+- **💡 Preset Questions** - Quick access to common philosophical topics
+- **📥 Export Conversations** - Save as Text, Markdown, or JSON
+- **⚡ Streaming Responses** - See answers appear in real-time
+- **🎨 Modern UI** - Clean, elegant design with Chinese aesthetics
 
 ## Quick Setup
 
@@ -50,19 +53,30 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-3. Set up your OpenAI API key:
-   - Create a `.env` file in the project root and add:
-     ```
-     OPENAI_API_KEY=your_api_key_here
-     ```
-   - Or set it as an environment variable:
-     ```bash
-     export OPENAI_API_KEY=your_api_key_here  # On Windows: set OPENAI_API_KEY=your_api_key_here
-     ```
-   - Or use Streamlit secrets (create `.streamlit/secrets.toml`):
-     ```
-     OPENAI_API_KEY = "your_api_key_here"
-     ```
+3. Set up your OpenAI API key (choose one method):
+
+   **Method 1: Using .env file (Recommended for local)**
+   ```bash
+   # Create .env file in project root
+   echo "OPENAI_API_KEY=your-api-key-here" > .env
+   ```
+
+   **Method 2: Using Streamlit secrets**
+   ```bash
+   # Create .streamlit/secrets.toml
+   mkdir -p .streamlit
+   cat > .streamlit/secrets.toml << EOF
+   [openai]
+   api_key = "your-api-key-here"
+   EOF
+   ```
+
+   **Method 3: Environment variable**
+   ```bash
+   export OPENAI_API_KEY=your-api-key-here  # macOS/Linux
+   # or
+   set OPENAI_API_KEY=your-api-key-here  # Windows
+   ```
 
 4. Run the application:
 ```bash

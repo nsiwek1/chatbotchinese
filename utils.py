@@ -100,15 +100,38 @@ PRIMARY SOURCE: Mencius (Mengzi)
 
 def init_openai():
     """Initialize OpenAI client with API key from environment or Streamlit secrets"""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    api_key = None
+    
+    # Try loading from Streamlit secrets first (for deployment)
+    try:
+        api_key = st.secrets["openai"]["api_key"]
+    except:
         try:
+            # Fallback to flat secrets structure
             api_key = st.secrets.get("OPENAI_API_KEY", "")
         except:
             pass
     
+    # If not in secrets, try environment variable (for local development)
     if not api_key:
-        st.error("⚠️ OpenAI API key not found. Please set OPENAI_API_KEY in your environment variables or Streamlit secrets.")
+        api_key = os.getenv("OPENAI_API_KEY")
+    
+    if not api_key:
+        st.error("⚠️ OpenAI API key not found. Please set it in Streamlit secrets or environment variables.")
+        st.info("""
+        **For Streamlit Cloud deployment:**
+        Add to your app's Secrets (Settings → Secrets):
+        ```
+        [openai]
+        api_key = "your-key-here"
+        ```
+        
+        **For local development:**
+        Create a `.env` file with:
+        ```
+        OPENAI_API_KEY=your-key-here
+        ```
+        """)
         st.stop()
     
     return OpenAI(api_key=api_key)
