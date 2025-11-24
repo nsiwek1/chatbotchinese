@@ -522,9 +522,27 @@ def get_shared_css(theme="light"):
     }}
     
     /* Hide default Streamlit elements */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
+    #MainMenu {{visibility: hidden !important;}}
+    footer {{visibility: hidden !important;}}
+    header {{visibility: hidden !important;}}
+    
+    /* Hide hamburger menu completely */
+    button[kind="header"] {{display: none !important;}}
+    [data-testid="stToolbar"] {{display: none !important;}}
+    
+    /* Hide "Deploy" button */
+    [data-testid="stDeployButton"] {{display: none !important;}}
+    
+    /* Hide settings/options menu */
+    [data-testid="stDecoration"] {{display: none !important;}}
+    
+    /* Hide "Made with Streamlit" footer */
+    footer {{visibility: hidden !important;}}
+    footer:after {{
+        content:''; 
+        visibility: hidden;
+        display: block;
+    }}
     
     /* Title Section */
     .main-title {{
